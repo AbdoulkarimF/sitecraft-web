@@ -1,9 +1,13 @@
 import axios from 'axios';
+import { mockData } from './mockData';
 
 class AuthService {
   constructor() {
+    // Mode mock pour le développement
+    this.useMock = true;
+    
     this.api = axios.create({
-      baseURL: process.env.REACT_APP_API_URL,
+      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000',
       headers: {
         'Content-Type': 'application/json'
       }
@@ -37,6 +41,18 @@ class AuthService {
   }
 
   async login(email, password) {
+    if (this.useMock) {
+      // Simuler un délai de réponse
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (email === 'demo@example.com' && password === 'demo') {
+        const { user } = mockData;
+        localStorage.setItem('token', user.token);
+        localStorage.setItem('user', JSON.stringify(user));
+        return user;
+      }
+      throw new Error('Invalid credentials');
+    }
+    
     try {
       const response = await this.api.post('/auth/login', { email, password });
       if (response.data.token) {
@@ -49,9 +65,17 @@ class AuthService {
     }
   }
 
-  async register(userData) {
+  async register(username, email, password) {
+    if (this.useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = { ...mockData.user, username, email };
+      localStorage.setItem('token', user.token);
+      localStorage.setItem('user', JSON.stringify(user));
+      return user;
+    }
+
     try {
-      const response = await this.api.post('/auth/register', userData);
+      const response = await this.api.post('/auth/register', { username, email, password });
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
