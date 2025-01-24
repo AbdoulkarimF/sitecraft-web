@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import SiteService from '../../services/SiteService';
 
@@ -10,22 +10,33 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
     fetchSites();
-  }, []);
+  }, [user, navigate]);
 
   const fetchSites = async () => {
     try {
-      const sites = await SiteService.fetchSites();
-      setSites(sites);
+      setLoading(true);
+      setError('');
+      const fetchedSites = await SiteService.fetchSites();
+      setSites(fetchedSites || []);
     } catch (err) {
       console.error('Erreur:', err);
-      setError(err.message);
+      setError('Une erreur est survenue lors du chargement de vos sites.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (!user) {
+    return null; // Redirection gérée dans useEffect
+  }
 
   if (loading) {
     return (
@@ -38,7 +49,10 @@ function Dashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Tableau de bord</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Tableau de bord</h1>
+          <p className="text-gray-600 mt-2">Bienvenue, {user.username || 'utilisateur'} !</p>
+        </div>
         <Link
           to="/new-site"
           className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
@@ -54,11 +68,14 @@ function Dashboard() {
       )}
 
       {sites.length === 0 ? (
-        <div className="text-center py-12">
-          <h2 className="text-xl mb-4">Vous n'avez pas encore créé de site.</h2>
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">Vous n'avez pas encore créé de site</h2>
+          <p className="text-gray-600 mb-6">
+            Commencez par créer votre premier site en cliquant sur le bouton ci-dessous
+          </p>
           <Link
             to="/new-site"
-            className="text-indigo-600 hover:text-indigo-800"
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             Commencer maintenant
           </Link>
@@ -68,7 +85,7 @@ function Dashboard() {
           {sites.map((site) => (
             <div
               key={site.id}
-              className="border rounded-lg p-6 hover:shadow-lg transition-shadow"
+              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6"
             >
               <h3 className="text-xl font-semibold mb-2">{site.name}</h3>
               <p className="text-gray-600 mb-4">{site.description}</p>

@@ -1,112 +1,106 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import AuthService from '../services/AuthService';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Validate token with backend
-      fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) {
-          setUser(data.user);
-        } else {
-          localStorage.removeItem('token');
-        }
-      })
-      .catch(() => {
-        localStorage.removeItem('token');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-    } else {
+    // Vérifier si l'utilisateur est déjà connecté
+    const initAuth = () => {
+      const storedUser = AuthService.getCurrentUser();
+      if (storedUser) {
+        setUser(storedUser);
+      }
       setLoading(false);
-    }
+    };
+
+    initAuth();
   }, []);
 
   const login = async (email, password) => {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Erreur de connexion');
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur de connexion');
+      }
+
+      AuthService.saveCurrentUser(data.user);
+      setUser(data.user);
+      return data;
+    } catch (error) {
+      console.error('Erreur de connexion:', error);
+      throw error;
     }
-
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
-    return data;
   };
 
-  const register = async (email, password, name) => {
-    const userData = {
-      email: email,
-      password: password,
-      username: name
-    };
+  const register = async (username, email, password) => {
+    try {
+      const userData = {
+        email: email,
+        password: password,
+        username: username
+      };
 
-    console.log('Envoi des données:', userData);
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
 
-    const response = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
+      const data = await response.json();
 
-    const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur d\'inscription');
+      }
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Erreur d\'inscription');
+      AuthService.saveCurrentUser(data.user);
+      setUser(data.user);
+      return data;
+    } catch (error) {
+      console.error('Erreur d\'inscription:', error);
+      throw error;
     }
-
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
-    return data;
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    AuthService.logout();
     setUser(null);
   };
 
-  const value = {
-    user,
-    loading,
-    isAuthenticated: !!user,
-    login,
-    register,
-    logout,
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth doit être utilisé à l\'intérieur d\'un AuthProvider');
   }
   return context;
-};
-
-export default AuthContext;
+}
