@@ -1,13 +1,15 @@
 import axios from 'axios';
 import { mockData } from './mockData';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 class AuthService {
   constructor() {
     // Mode mock pour le développement
     this.useMock = true;
     
     this.api = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000',
+      baseURL: API_URL || 'http://localhost:3000',
       headers: {
         'Content-Type': 'application/json'
       }
@@ -55,13 +57,21 @@ class AuthService {
     
     try {
       const response = await this.api.post('/auth/login', { email, password });
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      if (!response.data.ok) {
+        const error = response.data;
+        throw new Error(error.message || 'Erreur de connexion');
       }
-      return response.data;
+
+      const data = response.data;
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+      return data;
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur de connexion');
+      console.error('Erreur de connexion:', error);
+      throw new Error(error.message || 'Erreur de connexion au serveur');
     }
   }
 
@@ -76,19 +86,30 @@ class AuthService {
 
     try {
       const response = await this.api.post('/auth/register', { username, email, password });
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      if (!response.data.ok) {
+        const error = response.data;
+        throw new Error(error.message || 'Erreur d\'inscription');
       }
-      return response.data;
+
+      const data = response.data;
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+      return data;
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur d\'inscription');
+      console.error('Erreur d\'inscription:', error);
+      if (error.message === 'Network Error') {
+        throw new Error('Impossible de se connecter au serveur. Veuillez vérifier votre connexion internet.');
+      }
+      throw error;
     }
   }
 
   async loginWithGoogle() {
     try {
-      window.location.href = `${process.env.REACT_APP_API_URL}/auth/google`;
+      window.location.href = `${API_URL}/auth/google`;
     } catch (error) {
       throw new Error('Erreur de connexion avec Google');
     }
@@ -96,7 +117,7 @@ class AuthService {
 
   async loginWithGithub() {
     try {
-      window.location.href = `${process.env.REACT_APP_API_URL}/auth/github`;
+      window.location.href = `${API_URL}/auth/github`;
     } catch (error) {
       throw new Error('Erreur de connexion avec GitHub');
     }
@@ -109,8 +130,14 @@ class AuthService {
   }
 
   getCurrentUser() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    try {
+      return JSON.parse(userStr);
+    } catch {
+      this.logout();
+      return null;
+    }
   }
 
   getToken() {
@@ -127,7 +154,8 @@ class AuthService {
       localStorage.setItem('user', JSON.stringify(response.data));
       return response.data;
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur de mise à jour du profil');
+      console.error('Erreur de mise à jour du profil:', error);
+      throw new Error(error.message || 'Erreur de mise à jour du profil');
     }
   }
 
@@ -135,7 +163,8 @@ class AuthService {
     try {
       await this.api.put('/auth/password', { currentPassword, newPassword });
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur de changement de mot de passe');
+      console.error('Erreur de changement de mot de passe:', error);
+      throw new Error(error.message || 'Erreur de changement de mot de passe');
     }
   }
 
@@ -143,7 +172,8 @@ class AuthService {
     try {
       await this.api.post('/auth/reset-password', { email });
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur de réinitialisation du mot de passe');
+      console.error('Erreur de réinitialisation du mot de passe:', error);
+      throw new Error(error.message || 'Erreur de réinitialisation du mot de passe');
     }
   }
 
@@ -151,7 +181,8 @@ class AuthService {
     try {
       await this.api.post('/auth/verify-email', { token });
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Erreur de vérification d\'email');
+      console.error('Erreur de vérification d\'email:', error);
+      throw new Error(error.message || 'Erreur de vérification d\'email');
     }
   }
 }
